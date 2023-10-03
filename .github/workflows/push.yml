@@ -1,8 +1,15 @@
-on: [push]
 name: Deploy workflow
+
+on: [push]
+
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   install:
     runs-on: ubuntu-latest
@@ -89,12 +96,12 @@ jobs:
           git commit -m "Push to gh-pages"
           git push -f https://$GITHUB_ACTOR:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git HEAD:$BRANCH
 
-      - name: Send Notification
-        uses: haishanh/actions-telegram-notification@v1
-        if: ${{ always() }}
-        with:
-          notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
-          job-status: ${{ job.status }}
+      # - name: Send Notification
+      #   uses: haishanh/actions-telegram-notification@v1
+      #   if: ${{ always() }}
+      #   with:
+      #     notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
+      #     job-status: ${{ job.status }}
 
   docker:
     needs: install
@@ -117,16 +124,20 @@ jobs:
 
       - name: Docker meta
         id: docker_meta
-        uses: docker/metadata-action@v5
+        # docker/metadata-action@v5.0.0
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934
         with:
-          images: haishanh/yacd
+          images: |
+            ${{ secrets.DOCKERHUB_REGISTRY }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
       # - name: Set up QEMU
       #   uses: docker/setup-qemu-action@v1.2.0
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        # uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226
         with:
           version: latest
 
@@ -136,13 +147,15 @@ jobs:
         run: echo ${{ steps.buildx.outputs.platforms }}
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        # docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
         with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        # docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -150,7 +163,8 @@ jobs:
 
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v5
+        # docker/build-push-action@v5
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
         with:
           context: .
           file: ./Dockerfile
@@ -166,9 +180,9 @@ jobs:
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
 
-      - name: Send Notification
-        uses: haishanh/actions-telegram-notification@v1
-        if: ${{ always() }}
-        with:
-          notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
-          job-status: ${{ job.status }}
+      # - name: Send Notification
+      #   uses: haishanh/actions-telegram-notification@v1
+      #   if: ${{ always() }}
+      #   with:
+      #     notification-token: ${{ secrets.TG_NOTIFICATION_TOKEN }}
+      #     job-status: ${{ job.status }}
